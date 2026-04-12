@@ -628,4 +628,4 @@ async def eq(ctx):
 # =====================
 # START
 # =====================
-bot.run("MTQ5MjY0MTQ0NDMzNzU0OTQ1Mg.GFX_To._FMd15-XQQla8Z-VnmSFKaMuPKebba6NzEnz3I")
+bot.run(os.getenv("TOKEN"))
