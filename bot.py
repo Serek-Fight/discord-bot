@@ -301,6 +301,32 @@ async def addmoney(ctx, member: discord.Member, amount: int):
     await ctx.send(embed=embed)
 
 # =====================
+# SETMONEY (ADMIN)
+# =====================
+@bot.command()
+@commands.is_owner()
+async def setmoney(ctx, member: discord.Member, amount: int):
+    if amount < 0:
+        embed = discord.Embed(
+            title="❌ BŁĄD",
+            description="Kwota nie może być ujemna",
+            color=0xFF6B6B
+        )
+        return await ctx.send(embed=embed)
+
+    data = get_user(member.id)
+    data["money"] = amount
+    save()
+
+    embed = discord.Embed(
+        title="💰 USTAWIONO KASĘ",
+        description=f"{member.name} ma teraz **{amount}$**",
+        color=0x00C853
+    )
+    embed.set_thumbnail(url=member.avatar.url)
+    await ctx.send(embed=embed)
+
+# =====================
 # BET (HAZARD)
 # =====================
 @bot.command()
@@ -373,7 +399,7 @@ async def bet(ctx, color, amount: int):
         if roll == 1:
             result_color = "zielony"
             multiplier = 10
-        elif roll <= 20:
+        elif roll <= 30:
             result_color = color
             multiplier = 2
         else:
