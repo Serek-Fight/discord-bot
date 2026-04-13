@@ -399,7 +399,7 @@ async def bet(ctx, color, amount: int):
         if roll == 1:
             result_color = "zielony"
             multiplier = 10
-        elif roll <= 30:
+        elif roll <= 20:
             result_color = color
             multiplier = 2
         else:
