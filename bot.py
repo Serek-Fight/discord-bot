@@ -484,13 +484,13 @@ async def battle(ctx, member: discord.Member, amount: int):
     await asyncio.sleep(2)
 
     winner = random.choice([ctx.author, member])
-loser = member if winner == ctx.author else ctx.author
+    loser = member if winner == ctx.author else ctx.author
 
-winnings = int(amount * 2 * 0.85)
+    winnings = int(amount * 2 * 0.85)
 
-winner_data = get_user(winner.id)
-winner_data["money"] += winnings
-save()
+    winner_data = get_user(winner.id)
+    winner_data["money"] += winnings
+    save()
 
     embed = discord.Embed(
         title="🏆 WYNIK WALKI",
