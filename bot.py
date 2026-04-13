@@ -57,7 +57,7 @@ color_emojis = {
 professions = {
     "SĘDZIA": 500,
     "PSYCHOLOG": 400,
-    "ADWOKAT": 350
+    "ADWOKAT": 250
 }
 
 # =====================
@@ -231,7 +231,7 @@ async def daily(ctx):
             )
             return await ctx.send(embed=embed)
 
-    reward = random.randint(1000, 2000)
+    reward = random.randint(500, 1200)
     data = get_user(user_id)
     data["money"] += reward
     daily_data[user_id] = now
@@ -484,12 +484,13 @@ async def battle(ctx, member: discord.Member, amount: int):
     await asyncio.sleep(2)
 
     winner = random.choice([ctx.author, member])
-    loser = member if winner == ctx.author else ctx.author
+loser = member if winner == ctx.author else ctx.author
 
-    winnings = amount * 2
-    winner_data = get_user(winner.id)
-    winner_data["money"] += winnings
-    save()
+winnings = int(amount * 2 * 0.75)
+
+winner_data = get_user(winner.id)
+winner_data["money"] += winnings
+save()
 
     embed = discord.Embed(
         title="🏆 WYNIK WALKI",
