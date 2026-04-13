@@ -433,6 +433,73 @@ async def bet(ctx, color, amount: int):
     await msg.edit(embed=embed)
 
 # =====================
+# BATTLE (WALKA)
+# =====================
+@bot.command()
+async def battle(ctx, member: discord.Member, amount: int):
+    if member == ctx.author:
+        return await ctx.send("❌ Nie możesz walczyć ze sobą")
+
+    if amount <= 0:
+        return await ctx.send("❌ Kwota musi być większa niż 0")
+
+    user1 = get_user(ctx.author.id)
+    user2 = get_user(member.id)
+
+    if user1["money"] < amount:
+        return await ctx.send("❌ Nie masz tyle pieniędzy")
+
+    if user2["money"] < amount:
+        return await ctx.send("❌ Ta osoba nie ma tyle pieniędzy")
+
+    embed = discord.Embed(
+        title="⚔️ WYZWANIE DO WALKI",
+        description=f"{ctx.author.mention} wyzywa {member.mention} na walkę o **{amount}$**\n\nKliknij ✅ aby zaakceptować",
+        color=0xFFA500
+    )
+
+    msg = await ctx.send(embed=embed)
+    await msg.add_reaction("✅")
+
+    def check(reaction, user):
+        return user == member and str(reaction.emoji) == "✅" and reaction.message.id == msg.id
+
+    try:
+        await bot.wait_for("reaction_add", timeout=30.0, check=check)
+    except asyncio.TimeoutError:
+        return await ctx.send("⏳ Czas minął, brak odpowiedzi")
+
+    # Sprawdź jeszcze raz kasę (bo mogła się zmienić)
+    if user1["money"] < amount or user2["money"] < amount:
+        return await ctx.send("❌ Ktoś nie ma już pieniędzy")
+
+    # Zabierz kasę
+    user1["money"] -= amount
+    user2["money"] -= amount
+    save()
+
+    # Animacja walki
+    fight_msg = await ctx.send("⚔️ Walka trwa...")
+
+    await asyncio.sleep(2)
+
+    winner = random.choice([ctx.author, member])
+    loser = member if winner == ctx.author else ctx.author
+
+    winnings = amount * 2
+    winner_data = get_user(winner.id)
+    winner_data["money"] += winnings
+    save()
+
+    embed = discord.Embed(
+        title="🏆 WYNIK WALKI",
+        description=f"👑 Wygrywa: {winner.mention}\n💰 Wygrana: **{winnings}$**\n❌ Przegrany: {loser.mention}",
+        color=0x51CF66
+    )
+
+    await fight_msg.edit(content=None, embed=embed)
+
+# =====================
 # SLOT
 # =====================
 @bot.command()
