@@ -486,7 +486,7 @@ async def battle(ctx, member: discord.Member, amount: int):
     winner = random.choice([ctx.author, member])
 loser = member if winner == ctx.author else ctx.author
 
-winnings = int(amount * 2 * 0.75)
+winnings = int(amount * 2 * 0.85)
 
 winner_data = get_user(winner.id)
 winner_data["money"] += winnings
