@@ -119,10 +119,6 @@ def get_user(user_id):
 async def on_ready():
     print(f"✅ Bot działa jako {bot.user}")
 
-@bot.command()
-async def testmembers(ctx):
-    await ctx.send(f"Liczba członków: {len(ctx.guild.members)}")
-
 # =====================
 # KOMENDY
 # =====================
