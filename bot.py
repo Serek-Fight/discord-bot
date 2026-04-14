@@ -143,40 +143,23 @@ async def komendy(ctx):
 # BALANCE
 # =====================
 @bot.command()
-async def balance(ctx, *, name: str = None):
-    # jeśli nie podano nazwy → pokazuje twoją kasę
-    if not name:
-        data = get_user(ctx.author.id)
-
-        embed = discord.Embed(
-            title="💰 TWOJA KASA",
-            description=f"{ctx.author.name}",
-            color=0xFFD700
-        )
-        embed.add_field(name="Pieniądze", value=f"**{data['money']}$**", inline=False)
-        embed.set_thumbnail(url=ctx.author.avatar.url)
-        return await ctx.send(embed=embed)
-
-    # szukanie użytkownika po nicku / nazwie
-    member = None
-
-    for m in ctx.guild.members:
-        if name.lower() in m.name.lower() or (m.display_name and name.lower() in m.display_name.lower()):
-            member = m
-            break
-
-    if not member:
-        return await ctx.send("❌ Nie znaleziono takiej osoby na serwerze")
+async def balance(ctx, member: discord.Member = None):
+    # jeśli nie ma pingu → pokazuje własny balans
+    if member is None:
+        member = ctx.author
 
     data = get_user(member.id)
 
     embed = discord.Embed(
-        title="💰 BALANS GRACZA",
-        description=f"{member.name}",
+        title="💰 BALANCE",
+        description=f"{member.mention}",
         color=0xFFD700
     )
     embed.add_field(name="Pieniądze", value=f"**{data['money']}$**", inline=False)
-    embed.set_thumbnail(url=member.avatar.url)
+
+    # avatar (bez crasha jeśli brak)
+    if member.avatar:
+        embed.set_thumbnail(url=member.avatar.url)
 
     await ctx.send(embed=embed)
 
