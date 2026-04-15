@@ -346,24 +346,36 @@ async def bet(ctx, color, amount: int):
     
     # Walidacja
     if color not in ["czarny", "czerwony", "zielony"]:
-        embed = discord.Embed(title="❌ BŁĄD", description="Kolory: **czarny, czerwony, zielony**", color=0xFF6B6B)
+        embed = discord.Embed(
+            title="❌ BŁĄD",
+            description="Kolory: **czarny, czerwony, zielony**",
+            color=0xFF6B6B
+        )
         return await ctx.send(embed=embed)
     
     if amount <= 0:
-        embed = discord.Embed(title="❌ BŁĄD", description="Kwota musi być większa niż 0", color=0xFF6B6B)
+        embed = discord.Embed(
+            title="❌ BŁĄD",
+            description="Kwota musi być większa niż 0",
+            color=0xFF6B6B
+        )
         return await ctx.send(embed=embed)
     
     data = get_user(ctx.author.id)
     
     if data["money"] < amount:
-        embed = discord.Embed(title="❌ BRAK KASY", description=f"Masz tylko **{data['money']}$**", color=0xFF6B6B)
+        embed = discord.Embed(
+            title="❌ BRAK KASY",
+            description=f"Masz tylko **{data['money']}$**",
+            color=0xFF6B6B
+        )
         return await ctx.send(embed=embed)
     
-    # Wcięcie pieniędzy
+    # Zabranie pieniędzy
     data["money"] -= amount
     save()
     
-    # Animacja losowania
+    # Embed startowy
     embed = discord.Embed(
         title="🎰 HAZARD",
         description=f"Wybór: {color_emojis[color]}\nStawka: **{amount}$**",
@@ -385,61 +397,28 @@ async def bet(ctx, color, amount: int):
     
     for i in range(6):
         frame = roulette_frames[i % len(roulette_frames)]
-        embed.set_field_at(0, name=f"Obrót ruletki... ({i+1}/6)", value=frame, inline=False)
+        embed.set_field_at(
+            0,
+            name=f"Obrót ruletki... ({i+1}/6)",
+            value=frame,
+            inline=False
+        )
         await msg.edit(embed=embed)
         await asyncio.sleep(0.25)
     
-    # Losowanie wyniku - szanse zależą od wybranego koloru
+    # 🎯 LOSOWANIE (NOWE SZANSE)
     roll = random.randint(1, 100)
     
-    if color == "zielony":
-        # Zielony 1%
-        if roll == 1:
-            result_color = "zielony"
-            multiplier = 10
-        elif roll <= 50:
-            result_color = "czarny"
-            multiplier = 2
-        else:
-            result_color = "czerwony"
-            multiplier = 2
-    else:
-        # Czarny/Czerwony 20%, ale zielony zawsze 1%
-        if roll == 1:
-            result_color = "zielony"
-            multiplier = 10
-        elif roll <= 20:
-            result_color = color
-            multiplier = 2
-        else:
-            # Pozostały kolor (czarny lub czerwony - nie zielony!)
-            other_color = "czarny" if color == "czerwony" else "czerwony"
-            result_color = other_color
-            multiplier = 2
+    if roll == 1:
+        result_color = "zielony"
+        multiplier = 10
     
-    # Obliczenie wyniku
-    if result_color == color:
-        winnings = amount * multiplier
-        data["money"] += winnings
-        save()
-        
-        result_emoji = "✅"
-        result_text = f"WYGRANA! 🎉\nWylosowany kolor: {color_emojis[result_color]}\nWygrana: **+{winnings}$** (x{multiplier})\nAktualna kasa: **{data['money']}$**"
-        embed_color = 0x51CF66
-    else:
-        result_emoji = "❌"
-        result_text = f"PRZEGRANA!\nWylosowany kolor: {color_emojis[result_color]}\nStrata: **{amount}$**\nAktualna kasa: **{data['money']}$**"
-        embed_color = 0xFF8C8C
+    elif roll <= 41:  # 40%
+        result_color = color
+        multiplier = 2
     
-    # Wyświetl wynik
-    embed = discord.Embed(
-        title="🎰 HAZARD",
-        description=result_text,
-        color=embed_color
-    )
-    embed.set_thumbnail(url=ctx.author.avatar.url)
-    
-    await msg.edit(embed=embed)
+    else:  # 59%
+        other_color = "czarny" if color == "czerwony" else "czerw
 
 # =====================
 # BATTLE (WALKA)
