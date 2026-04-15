@@ -340,86 +340,104 @@ async def setmoney(ctx, member: discord.Member, amount: int):
 # =====================
 @bot.command()
 async def bet(ctx, color, amount: int):
+    import random, asyncio, time
+    
     color = color.lower()
-    user_id = str(ctx.author.id)
-    now = time.time()
     
-    # Walidacja
+    # Walidacja koloru
     if color not in ["czarny", "czerwony", "zielony"]:
-        embed = discord.Embed(
-            title="❌ BŁĄD",
-            description="Kolory: **czarny, czerwony, zielony**",
-            color=0xFF6B6B
-        )
-        return await ctx.send(embed=embed)
+        return await ctx.send("❌ Użyj: !bet (czarny/czerwony/zielony) (ilość)")
     
+    # Walidacja kwoty
     if amount <= 0:
-        embed = discord.Embed(
-            title="❌ BŁĄD",
-            description="Kwota musi być większa niż 0",
-            color=0xFF6B6B
-        )
-        return await ctx.send(embed=embed)
+        return await ctx.send("❌ Kwota musi być większa niż 0")
     
     data = get_user(ctx.author.id)
     
     if data["money"] < amount:
-        embed = discord.Embed(
-            title="❌ BRAK KASY",
-            description=f"Masz tylko **{data['money']}$**",
-            color=0xFF6B6B
-        )
-        return await ctx.send(embed=embed)
+        return await ctx.send(f"❌ Masz tylko {data['money']}$")
     
-    # Zabranie pieniędzy
+    # Zabieranie pieniędzy
     data["money"] -= amount
     save()
     
-    # Embed startowy
+    # 🎰 Start embed
     embed = discord.Embed(
-        title="🎰 HAZARD",
-        description=f"Wybór: {color_emojis[color]}\nStawka: **{amount}$**",
-        color=0xFF6B6B
+        title="🎰 Ruletka",
+        description=f"Stawiasz na: **{color}**\nKwota: **{amount}$**",
+        color=0xE74C3C
     )
-    embed.add_field(name="Losowanie...", value="⏳", inline=False)
+    embed.add_field(name="Kręcenie...", value="⏳", inline=False)
     
     msg = await ctx.send(embed=embed)
     
-    # Animacja ruletki
-    roulette_frames = [
+    # 🎥 Animacja (lepsza)
+    frames = [
         "🎰 ⚫ 🔴 🟢",
         "🎰 🔴 🟢 ⚫",
         "🎰 🟢 ⚫ 🔴",
-        "🎰 ⚫ 🔴 🟢",
-        "🎰 🔴 🟢 ⚫",
-        "🎰 🟢 ⚫ 🔴",
+        "🎰 ⚫ 🟢 🔴",
+        "🎰 🔴 ⚫ 🟢",
+        "🎰 🟢 🔴 ⚫"
     ]
     
-    for i in range(6):
-        frame = roulette_frames[i % len(roulette_frames)]
+    for i in range(8):
         embed.set_field_at(
             0,
-            name=f"Obrót ruletki... ({i+1}/6)",
-            value=frame,
+            name=f"Kręcenie... ({i+1}/8)",
+            value=random.choice(frames),
             inline=False
         )
         await msg.edit(embed=embed)
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(0.2)
     
-    # 🎯 LOSOWANIE (NOWE SZANSE)
+    # 🎯 LOSOWANIE
     roll = random.randint(1, 100)
     
-    if roll == 1:
-        result_color = "zielony"
+    if roll <= 5:
+        result = "zielony"
         multiplier = 10
     
-    elif roll <= 41:  # 40%
-        result_color = color
+    elif roll <= 45:
+        result = color
         multiplier = 2
     
-    else:  # 59%
-        other_color = "czarny" if color == "czerwony" else "czerw
-
+    else:
+        result = "czarny" if color == "czerwony" else "czerwony"
+        multiplier = 2
+    
+    # 🎉 Wynik
+    if result == color:
+        win = amount * multiplier
+        data["money"] += win
+        save()
+        
+        text = (
+            f"✅ **WYGRANA!**\n"
+            f"Wylosowano: **{result}**\n"
+            f"Wygrywasz: **+{win}$** (x{multiplier})\n"
+            f"Stan konta: **{data['money']}$**"
+        )
+        color_embed = 0x2ECC71
+    
+    else:
+        text = (
+            f"❌ **PRZEGRANA!**\n"
+            f"Wylosowano: **{result}**\n"
+            f"Straciłeś: **{amount}$**\n"
+            f"Stan konta: **{data['money']}$**"
+        )
+        color_embed = 0xE74C3C
+    
+    # 📊 Finalny embed
+    embed = discord.Embed(
+        title="🎰 Ruletka - wynik",
+        description=text,
+        color=color_embed
+    )
+    embed.set_thumbnail(url=ctx.author.avatar.url)
+    
+    await msg.edit(embed=embed)
 # =====================
 # BATTLE (WALKA)
 # =====================
