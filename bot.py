@@ -350,7 +350,7 @@ async def bet(ctx, color, amount: int):
         "zielony": "🟢"
     }
 
-    # 🎯 WALIDACJA
+    # ✅ Walidacja
     if color not in COLORS:
         return await ctx.send("❌ Użyj: !bet (czarny/czerwony/zielony) (ilość)")
     
@@ -366,51 +366,31 @@ async def bet(ctx, color, amount: int):
     data["money"] -= amount
     save()
 
-    # 🎰 START EMBED
+    # 🎰 START
     embed = discord.Embed(
-        title="🎰 KASYNO • RULETKA",
+        title="🎰 Ruletka",
         description=(
-            f"👤 **Gracz:** {ctx.author.mention}\n"
-            f"🎯 **Typ:** {COLORS[color]} {color}\n"
-            f"💰 **Stawka:** `{amount}$`"
+            f"**Typ:** {COLORS[color]} {color}\n"
+            f"**Stawka:** {amount}$"
         ),
-        color=0x1E1F22
-    )
-
-    embed.add_field(
-        name="🎲 Kręcenie kołem...",
-        value="```⌛ Przygotowywanie ruletki...```",
-        inline=False
+        color=0x2B2D31
     )
 
     msg = await ctx.send(embed=embed)
 
-    # 🎥 ANIMACJA (slot style + zwalnianie)
-    wheel = ["⚫", "🔴", "🟢"]
-    spin_length = random.randint(14, 18)
+    # 🎥 KRÓTKA ANIMACJA
+    frames = ["⚫", "🔴", "🟢"]
 
-    for i in range(spin_length):
-        row = [random.choice(wheel) for _ in range(3)]
-
-        frame = (
-            "┏━━━━━━━━━━━━━━━┓\n"
-            f"┃  {row[0]} │ {row[1]} │ {row[2]}  ┃\n"
-            "┗━━━━━━━━━━━━━━━┛"
+    for _ in range(4):  # krótko
+        embed.description = (
+            f"**Typ:** {COLORS[color]} {color}\n"
+            f"**Stawka:** {amount}$\n\n"
+            f"🎲 Losowanie: {random.choice(frames)}"
         )
-
-        embed.set_field_at(
-            0,
-            name="🎲 Kręcenie kołem...",
-            value=f"```{frame}```\n⏳ Trwa losowanie...",
-            inline=False
-        )
-
         await msg.edit(embed=embed)
+        await asyncio.sleep(0.3)
 
-        # 🔥 realistyczne zwalnianie
-        await asyncio.sleep(0.04 + (i * 0.035))
-
-    # 🎯 LOSOWANIE (Twoje szanse)
+    # 🎯 LOSOWANIE
     roll = random.randint(1, 100)
 
     if roll <= 5:
@@ -431,114 +411,29 @@ async def bet(ctx, color, amount: int):
         data["money"] += winnings
         save()
 
-        result_text = (
-            "╔════════════════╗\n"
-            "   🎉 WYGRANA!\n"
-            "╚════════════════╝\n\n"
-            f"🎯 Wynik: {result_emoji} **{result.upper()}**\n"
+        text = (
+            f"🎯 Wynik: {result_emoji} **{result}**\n"
             f"💰 Wygrana: **+{winnings}$** (x{multiplier})\n"
-            f"💼 Stan konta: `{data['money']}$`"
+            f"💼 Stan: **{data['money']}$**"
         )
         color_embed = 0x57F287
 
     else:
-        result_text = (
-            "╔════════════════╗\n"
-            "   💀 PRZEGRANA\n"
-            "╚════════════════╝\n\n"
-            f"🎯 Wynik: {result_emoji} **{result.upper()}**\n"
+        text = (
+            f"🎯 Wynik: {result_emoji} **{result}**\n"
             f"💸 Strata: **-{amount}$**\n"
-            f"💼 Stan konta: `{data['money']}$`"
+            f"💼 Stan: **{data['money']}$**"
         )
         color_embed = 0xED4245
 
-    # 🏁 FINALNY EMBED
+    # 🏁 FINAL
     final_embed = discord.Embed(
-        title="🎰 WYNIK RULETKI",
-        description=result_text,
+        title="🎰 Wynik",
+        description=text,
         color=color_embed
     )
 
-    final_embed.set_footer(
-        text="Kasyno • Spróbuj ponownie 🍀",
-        icon_url=ctx.author.avatar.url
-    )
-
     await msg.edit(embed=final_embed)
-
-# =====================
-# SLOT
-# =====================
-@bot.command()
-async def slot(ctx, amount: int):
-    user_id = str(ctx.author.id)
-    now = time.time()
-    
-    # Walidacja
-    if amount <= 0:
-        embed = discord.Embed(title="❌ BŁĄD", description="Kwota musi być większa niż 0", color=0xFF6B6B)
-        return await ctx.send(embed=embed)
-    
-    data = get_user(ctx.author.id)
-    
-    if data["money"] < amount:
-        embed = discord.Embed(title="❌ BRAK KASY", description=f"Masz tylko **{data['money']}$**", color=0xFF6B6B)
-        return await ctx.send(embed=embed)
-    
-    # Wcięcie pieniędzy
-    data["money"] -= amount
-    save()
-    
-    # Początkowy embed
-    embed = discord.Embed(
-        title="🎰 AUTOMATY",
-        description=f"Stawka: **{amount}$**",
-        color=0xFF6B6B
-    )
-    embed.add_field(name="Zakręcanie...", value="⏳ ⏳ ⏳", inline=False)
-    
-    msg = await ctx.send(embed=embed)
-    
-    # Animacja spin (zoptymalizowana)
-    for i in range(5):
-        r1 = random.choice(slot_emojis)
-        r2 = random.choice(slot_emojis)
-        r3 = random.choice(slot_emojis)
-        
-        embed.set_field_at(0, name=f"Spin... ({i+1}/5)", value=f"{r1} {r2} {r3}", inline=False)
-        await msg.edit(embed=embed)
-        await asyncio.sleep(0.12)
-    
-    # Finalne rezultaty
-    roll = random.randint(1, 100)
-    
-    if roll <= 25:  # 25% szansa na wygraną
-        reel1 = random.choice(slot_emojis)
-        reel2 = reel1
-        reel3 = reel1
-        winnings = int(amount * 2.5)
-        data["money"] += winnings
-        save()
-        
-        result_text = f"🎉 JACKPOT! 🎉\n\n{reel1} {reel2} {reel3}\n\nWygrana: **+{winnings}$** (x2.5)\nAktualna kasa: **{data['money']}$**"
-        embed_color = 0x51CF66
-    else:
-        reel1 = random.choice(slot_emojis)
-        reel2 = random.choice(slot_emojis)
-        reel3 = random.choice(slot_emojis)
-        
-        result_text = f"Nie tym razem...\n\n{reel1} {reel2} {reel3}\n\nStrata: **{amount}$**\nAktualna kasa: **{data['money']}$**"
-        embed_color = 0xFF8C8C
-    
-    # Wynik
-    embed = discord.Embed(
-        title="🎰 AUTOMATY",
-        description=result_text,
-        color=embed_color
-    )
-    embed.set_thumbnail(url=ctx.author.avatar.url)
-    
-    await msg.edit(embed=embed)
 
 # =====================
 # SKLEP
