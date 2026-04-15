@@ -340,171 +340,131 @@ async def setmoney(ctx, member: discord.Member, amount: int):
 # =====================
 @bot.command()
 async def bet(ctx, color, amount: int):
-    import random, asyncio, time
-    
+    import random, asyncio
+
     color = color.lower()
-    
-    # Walidacja koloru
-    if color not in ["czarny", "czerwony", "zielony"]:
+
+    COLORS = {
+        "czarny": "⚫",
+        "czerwony": "🔴",
+        "zielony": "🟢"
+    }
+
+    # 🎯 WALIDACJA
+    if color not in COLORS:
         return await ctx.send("❌ Użyj: !bet (czarny/czerwony/zielony) (ilość)")
     
-    # Walidacja kwoty
     if amount <= 0:
         return await ctx.send("❌ Kwota musi być większa niż 0")
-    
+
     data = get_user(ctx.author.id)
-    
+
     if data["money"] < amount:
         return await ctx.send(f"❌ Masz tylko {data['money']}$")
-    
-    # Zabieranie pieniędzy
+
+    # 💸 zabranie kasy
     data["money"] -= amount
     save()
-    
-    # 🎰 Start embed
+
+    # 🎰 START EMBED
     embed = discord.Embed(
-        title="🎰 Ruletka",
-        description=f"Stawiasz na: **{color}**\nKwota: **{amount}$**",
-        color=0xE74C3C
+        title="🎰 KASYNO • RULETKA",
+        description=(
+            f"👤 **Gracz:** {ctx.author.mention}\n"
+            f"🎯 **Typ:** {COLORS[color]} {color}\n"
+            f"💰 **Stawka:** `{amount}$`"
+        ),
+        color=0x1E1F22
     )
-    embed.add_field(name="Kręcenie...", value="⏳", inline=False)
-    
+
+    embed.add_field(
+        name="🎲 Kręcenie kołem...",
+        value="```⌛ Przygotowywanie ruletki...```",
+        inline=False
+    )
+
     msg = await ctx.send(embed=embed)
-    
-    # 🎥 Animacja (lepsza)
-    frames = [
-        "🎰 ⚫ 🔴 🟢",
-        "🎰 🔴 🟢 ⚫",
-        "🎰 🟢 ⚫ 🔴",
-        "🎰 ⚫ 🟢 🔴",
-        "🎰 🔴 ⚫ 🟢",
-        "🎰 🟢 🔴 ⚫"
-    ]
-    
-    for i in range(8):
+
+    # 🎥 ANIMACJA (slot style + zwalnianie)
+    wheel = ["⚫", "🔴", "🟢"]
+    spin_length = random.randint(14, 18)
+
+    for i in range(spin_length):
+        row = [random.choice(wheel) for _ in range(3)]
+
+        frame = (
+            "┏━━━━━━━━━━━━━━━┓\n"
+            f"┃  {row[0]} │ {row[1]} │ {row[2]}  ┃\n"
+            "┗━━━━━━━━━━━━━━━┛"
+        )
+
         embed.set_field_at(
             0,
-            name=f"Kręcenie... ({i+1}/8)",
-            value=random.choice(frames),
+            name="🎲 Kręcenie kołem...",
+            value=f"```{frame}```\n⏳ Trwa losowanie...",
             inline=False
         )
+
         await msg.edit(embed=embed)
-        await asyncio.sleep(0.2)
-    
-    # 🎯 LOSOWANIE
+
+        # 🔥 realistyczne zwalnianie
+        await asyncio.sleep(0.04 + (i * 0.035))
+
+    # 🎯 LOSOWANIE (Twoje szanse)
     roll = random.randint(1, 100)
-    
+
     if roll <= 5:
         result = "zielony"
         multiplier = 10
-    
     elif roll <= 45:
         result = color
         multiplier = 2
-    
     else:
         result = "czarny" if color == "czerwony" else "czerwony"
         multiplier = 2
-    
-    # 🎉 Wynik
+
+    result_emoji = COLORS[result]
+
+    # 🎉 WYNIK
     if result == color:
-        win = amount * multiplier
-        data["money"] += win
+        winnings = amount * multiplier
+        data["money"] += winnings
         save()
-        
-        text = (
-            f"✅ **WYGRANA!**\n"
-            f"Wylosowano: **{result}**\n"
-            f"Wygrywasz: **+{win}$** (x{multiplier})\n"
-            f"Stan konta: **{data['money']}$**"
+
+        result_text = (
+            "╔════════════════╗\n"
+            "   🎉 WYGRANA!\n"
+            "╚════════════════╝\n\n"
+            f"🎯 Wynik: {result_emoji} **{result.upper()}**\n"
+            f"💰 Wygrana: **+{winnings}$** (x{multiplier})\n"
+            f"💼 Stan konta: `{data['money']}$`"
         )
-        color_embed = 0x2ECC71
-    
+        color_embed = 0x57F287
+
     else:
-        text = (
-            f"❌ **PRZEGRANA!**\n"
-            f"Wylosowano: **{result}**\n"
-            f"Straciłeś: **{amount}$**\n"
-            f"Stan konta: **{data['money']}$**"
+        result_text = (
+            "╔════════════════╗\n"
+            "   💀 PRZEGRANA\n"
+            "╚════════════════╝\n\n"
+            f"🎯 Wynik: {result_emoji} **{result.upper()}**\n"
+            f"💸 Strata: **-{amount}$**\n"
+            f"💼 Stan konta: `{data['money']}$`"
         )
-        color_embed = 0xE74C3C
-    
-    # 📊 Finalny embed
-    embed = discord.Embed(
-        title="🎰 Ruletka - wynik",
-        description=text,
+        color_embed = 0xED4245
+
+    # 🏁 FINALNY EMBED
+    final_embed = discord.Embed(
+        title="🎰 WYNIK RULETKI",
+        description=result_text,
         color=color_embed
     )
-    embed.set_thumbnail(url=ctx.author.avatar.url)
-    
-    await msg.edit(embed=embed)
-# =====================
-# BATTLE (WALKA)
-# =====================
-@bot.command()
-async def battle(ctx, member: discord.Member, amount: int):
-    if member == ctx.author:
-        return await ctx.send("❌ Nie możesz walczyć ze sobą")
 
-    if amount <= 0:
-        return await ctx.send("❌ Kwota musi być większa niż 0")
-
-    user1 = get_user(ctx.author.id)
-    user2 = get_user(member.id)
-
-    if user1["money"] < amount:
-        return await ctx.send("❌ Nie masz tyle pieniędzy")
-
-    if user2["money"] < amount:
-        return await ctx.send("❌ Ta osoba nie ma tyle pieniędzy")
-
-    embed = discord.Embed(
-        title="⚔️ WYZWANIE DO WALKI",
-        description=f"{ctx.author.mention} wyzywa {member.mention} na walkę o **{amount}$**\n\nKliknij ✅ aby zaakceptować",
-        color=0xFFA500
+    final_embed.set_footer(
+        text="Kasyno • Spróbuj ponownie 🍀",
+        icon_url=ctx.author.avatar.url
     )
 
-    msg = await ctx.send(embed=embed)
-    await msg.add_reaction("✅")
-
-    def check(reaction, user):
-        return user == member and str(reaction.emoji) == "✅" and reaction.message.id == msg.id
-
-    try:
-        await bot.wait_for("reaction_add", timeout=30.0, check=check)
-    except asyncio.TimeoutError:
-        return await ctx.send("⏳ Czas minął, brak odpowiedzi")
-
-    # Sprawdź jeszcze raz kasę (bo mogła się zmienić)
-    if user1["money"] < amount or user2["money"] < amount:
-        return await ctx.send("❌ Ktoś nie ma już pieniędzy")
-
-    # Zabierz kasę
-    user1["money"] -= amount
-    user2["money"] -= amount
-    save()
-
-    # Animacja walki
-    fight_msg = await ctx.send("⚔️ Walka trwa...")
-
-    await asyncio.sleep(2)
-
-    winner = random.choice([ctx.author, member])
-    loser = member if winner == ctx.author else ctx.author
-
-    winnings = int(amount * 2 * 0.85)
-
-    winner_data = get_user(winner.id)
-    winner_data["money"] += winnings
-    save()
-
-    embed = discord.Embed(
-        title="🏆 WYNIK WALKI",
-        description=f"👑 Wygrywa: {winner.mention}\n💰 Wygrana: **{winnings}$**\n❌ Przegrany: {loser.mention}",
-        color=0x51CF66
-    )
-
-    await fight_msg.edit(content=None, embed=embed)
+    await msg.edit(embed=final_embed)
 
 # =====================
 # SLOT
