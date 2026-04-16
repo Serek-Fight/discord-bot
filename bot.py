@@ -73,18 +73,12 @@ PROFESSION_EMOJIS = {
     "Pracownik": "💼"
 }
 
-SLOT_EMOJIS = ["🍎", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "⭐", "💎", "💰"]
+# Jedna aktywna gra jackpot na kanał
+ACTIVE_JACKPOTS = {}
 
-BET_SPIN_FRAMES = [
-    "⚫ 🔴 ⚫ 🟢 🔴 ⚫ 🔴",
-    "🔴 ⚫ 🟢 ⚫ 🔴 ⚫ 🔴",
-    "⚫ 🟢 🔴 ⚫ 🔴 ⚫ 🔴",
-    "🟢 ⚫ 🔴 ⚫ 🔴 ⚫ 🔴",
-    "🔴 ⚫ 🔴 🟢 ⚫ 🔴 ⚫",
-    "⚫ 🔴 ⚫ 🔴 🟢 ⚫ 🔴",
-    "🔴 ⚫ 🔴 ⚫ 🔴 🟢 ⚫",
-    "⚫ 🔴 🟢 ⚫ 🔴 ⚫ 🔴"
-]
+# Wiele battle naraz
+ACTIVE_BATTLES = {}
+ACTIVE_BATTLE_USERS = set()
 
 # =====================
 # LOAD / SAVE
@@ -98,21 +92,26 @@ def load(path, default):
             return default
     return default
 
+
 users = load(DATA_FILE, {})
 cooldowns = load(COOLDOWN_FILE, {})
 daily_data = load(DAILY_FILE, {})
+
 
 def save():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(users, f, ensure_ascii=False, indent=4)
 
+
 def save_cd():
     with open(COOLDOWN_FILE, "w", encoding="utf-8") as f:
         json.dump(cooldowns, f, ensure_ascii=False, indent=4)
 
+
 def save_daily():
     with open(DAILY_FILE, "w", encoding="utf-8") as f:
         json.dump(daily_data, f, ensure_ascii=False, indent=4)
+
 
 # =====================
 # HELPERY
@@ -134,12 +133,15 @@ def get_user(user_id):
 
     return users[user_id]
 
+
 def set_embed_thumbnail(embed, user):
-    if user.avatar:
+    if user and getattr(user, "avatar", None):
         embed.set_thumbnail(url=user.avatar.url)
 
+
 def format_money(amount):
-    return f"{amount:,}$".replace(",", " ")
+    return f"{int(amount):,}$".replace(",", " ")
+
 
 def get_bet_result(selected_color):
     roll = random.uniform(0, 100)
@@ -164,18 +166,15 @@ def get_bet_result(selected_color):
         return "czerwony"
     return "czarny"
 
-def get_slot_reward(reels, amount):
-    a, b, c = reels
 
-    if reels == ["💰", "💰", "💰"]:
-        return int(amount * 15), "🏆 JACKPOT! Trzy razy 💰"
-    if reels == ["💎", "💎", "💎"]:
-        return int(amount * 10), "💎 Mega trafienie! Trzy razy 💎"
-    if a == b == c:
-        return int(amount * 5), "🎉 Trzy takie same symbole!"
-    if a == b or b == c or a == c:
-        return int(amount * 2), "✨ Dwie takie same!"
-    return 0, "💸 Tym razem nic nie weszło."
+def cleanup_battle(message_id):
+    battle = ACTIVE_BATTLES.pop(message_id, None)
+    if not battle:
+        return
+
+    ACTIVE_BATTLE_USERS.discard(battle["author_id"])
+    ACTIVE_BATTLE_USERS.discard(battle["enemy_id"])
+
 
 # =====================
 # READY
@@ -184,40 +183,88 @@ def get_slot_reward(reels, amount):
 async def on_ready():
     print(f"✅ Bot działa jako {bot.user}")
 
+
 # =====================
 # KOMENDY / HELP
 # =====================
 @bot.command(aliases=["help"])
 async def komendy(ctx):
     embed = discord.Embed(
-        title="📖 KOMENDY BOTA",
-        description="Wszystkie dostępne komendy:",
-        color=0x5865F2
+        title="🎰 NEON CASINO PANEL",
+        description=(
+            "Tutaj masz wszystkie komendy bota.\n"
+            "Argumenty w `()` są wymagane, a w `[]` opcjonalne."
+        ),
+        color=0x11131A
     )
 
     embed.add_field(
         name="💰 EKONOMIA",
-        value="`!balance [@osoba]` - Stan konta\n`!work` - Pracuj co 1h\n`!daily` - Daily co 24h\n`!pay @osoba kwota` - Wyślij pieniądze",
-        inline=False
-    )
-    embed.add_field(
-        name="🎰 HAZARD",
-        value="`!bet kolor kwota` - Ruletka\n`!slot kwota` - Automaty\nKolory: `czarny`, `czerwony`, `zielony`",
-        inline=False
-    )
-    embed.add_field(
-        name="🛒 SKLEP",
-        value="`!sklep` - Pokaż sklep\n`!kup item ilość` - Kup przedmiot\n`!eq` - Twój ekwipunek",
-        inline=False
-    )
-    embed.add_field(
-        name="👑 ADMIN",
-        value="`!addmoney @osoba kwota` - Dodaj kasę\n`!setmoney @osoba kwota` - Ustaw kasę",
+        value=(
+            "`!balance [@osoba]` - sprawdza stan konta\n"
+            "`!work` - pracujesz i zarabiasz co 1h\n"
+            "`!daily` - odbierasz nagrodę co 24h\n"
+            "`!pay @osoba kwota` - wysyłasz komuś pieniądze"
+        ),
         inline=False
     )
 
+    embed.add_field(
+        name="🎲 GRY SOLO",
+        value=(
+            "`!bet (czarny/czerwony/zielony) (kwota)` - ruletka\n"
+            "`!slot (kwota)` - automaty\n"
+            "`!blackjack (kwota)` - blackjack\n"
+            "`!bj (kwota)` - skrót do blackjacka"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚔️ GRY DLA WIELU OSÓB",
+        value=(
+            "`!battle @osoba kwota` - pojedynek 1v1 o pieniądze\n"
+            "`!jackpot kwota` - tworzysz jackpot\n"
+            "`!joinpot kwota` - dołączasz do jackpota"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🛒 SKLEP",
+        value=(
+            "`!sklep` - pokazuje sklep\n"
+            "`!kup item ilość` - kupujesz przedmiot\n"
+            "`!eq` - pokazuje ekwipunek"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="👑 ADMIN",
+        value=(
+            "`!addmoney @osoba kwota` - dodaje pieniądze\n"
+            "`!setmoney @osoba kwota` - ustawia pieniądze"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="📘 INSTRUKCJE",
+        value=(
+            "`!battle` - wyzwany gracz akceptuje reakcją `✅`\n"
+            "`!blackjack` - `✋` dobiera kartę, `🛑` kończy turę\n"
+            "`!jackpot` - inni gracze wchodzą przez `!joinpot`\n"
+            "`!bet` - kolory to `czarny`, `czerwony`, `zielony`\n"
+            "`!help` działa tak samo jak `!komendy`"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(text="Neon Casino • High stakes • Good luck")
     set_embed_thumbnail(embed, ctx.bot.user)
     await ctx.send(embed=embed)
+
 
 # =====================
 # BALANCE
@@ -238,6 +285,7 @@ async def balance(ctx, member: discord.Member = None):
     set_embed_thumbnail(embed, member)
 
     await ctx.send(embed=embed)
+
 
 # =====================
 # WORK
@@ -286,6 +334,7 @@ async def work(ctx):
     set_embed_thumbnail(embed, ctx.author)
     await ctx.send(embed=embed)
 
+
 # =====================
 # DAILY
 # =====================
@@ -322,6 +371,7 @@ async def daily(ctx):
     set_embed_thumbnail(embed, ctx.author)
     await ctx.send(embed=embed)
 
+
 # =====================
 # PAY
 # =====================
@@ -334,22 +384,12 @@ async def pay(ctx, member: discord.Member, amount: int):
         return await ctx.send("❌ Nie możesz wysłać pieniędzy samemu sobie.")
 
     if amount <= 0:
-        embed = discord.Embed(
-            title="❌ BŁĄD",
-            description="Kwota musi być większa niż 0",
-            color=0xFF6B6B
-        )
-        return await ctx.send(embed=embed)
+        return await ctx.send("❌ Kwota musi być większa niż 0")
 
     sender_data = get_user(ctx.author.id)
 
     if sender_data["money"] < amount:
-        embed = discord.Embed(
-            title="❌ BŁĄD",
-            description=f"Masz tylko **{format_money(sender_data['money'])}**",
-            color=0xFF6B6B
-        )
-        return await ctx.send(embed=embed)
+        return await ctx.send(f"❌ Masz tylko **{format_money(sender_data['money'])}**")
 
     receiver_data = get_user(member.id)
 
@@ -364,6 +404,7 @@ async def pay(ctx, member: discord.Member, amount: int):
     )
     await ctx.send(embed=embed)
 
+
 # =====================
 # ADDMONEY
 # =====================
@@ -371,12 +412,7 @@ async def pay(ctx, member: discord.Member, amount: int):
 @commands.is_owner()
 async def addmoney(ctx, member: discord.Member, amount: int):
     if amount <= 0:
-        embed = discord.Embed(
-            title="❌ BŁĄD",
-            description="Kwota musi być większa niż 0",
-            color=0xFF6B6B
-        )
-        return await ctx.send(embed=embed)
+        return await ctx.send("❌ Kwota musi być większa niż 0")
 
     data = get_user(member.id)
     data["money"] += amount
@@ -391,6 +427,7 @@ async def addmoney(ctx, member: discord.Member, amount: int):
     set_embed_thumbnail(embed, member)
     await ctx.send(embed=embed)
 
+
 # =====================
 # SETMONEY
 # =====================
@@ -398,12 +435,7 @@ async def addmoney(ctx, member: discord.Member, amount: int):
 @commands.is_owner()
 async def setmoney(ctx, member: discord.Member, amount: int):
     if amount < 0:
-        embed = discord.Embed(
-            title="❌ BŁĄD",
-            description="Kwota nie może być ujemna",
-            color=0xFF6B6B
-        )
-        return await ctx.send(embed=embed)
+        return await ctx.send("❌ Kwota nie może być ujemna")
 
     data = get_user(member.id)
     data["money"] = amount
@@ -417,6 +449,7 @@ async def setmoney(ctx, member: discord.Member, amount: int):
     set_embed_thumbnail(embed, member)
     await ctx.send(embed=embed)
 
+
 # =====================
 # BET
 # =====================
@@ -426,30 +459,15 @@ async def bet(ctx, color, amount: int):
     color = color.lower()
 
     if color not in BET_COLORS:
-        embed = discord.Embed(
-            title="🎰 CASINO",
-            description="❌ Użyj: `!bet (czarny/czerwony/zielony) (kwota)`",
-            color=0xFF4D6D
-        )
-        return await ctx.send(embed=embed)
+        return await ctx.send("❌ Użyj: `!bet (czarny/czerwony/zielony) (kwota)`")
 
     if amount <= 0:
-        embed = discord.Embed(
-            title="🎰 CASINO",
-            description="❌ Kwota musi być większa niż 0.",
-            color=0xFF4D6D
-        )
-        return await ctx.send(embed=embed)
+        return await ctx.send("❌ Kwota musi być większa niż 0.")
 
     data = get_user(ctx.author.id)
 
     if data["money"] < amount:
-        embed = discord.Embed(
-            title="🎰 CASINO",
-            description=f"❌ Masz tylko **{format_money(data['money'])}**",
-            color=0xFF4D6D
-        )
-        return await ctx.send(embed=embed)
+        return await ctx.send(f"❌ Masz tylko **{format_money(data['money'])}**")
 
     data["money"] -= amount
     save()
@@ -484,7 +502,7 @@ async def bet(ctx, color, amount: int):
 
     msg = await ctx.send(embed=start_embed)
 
-    delay = 1.15 / len(spin_frames)
+    delay = 1.0 / len(spin_frames)
 
     for i, frame in enumerate(spin_frames):
         spin_embed = discord.Embed(
@@ -528,8 +546,6 @@ async def bet(ctx, color, amount: int):
         final_embed.add_field(name="Saldo", value=f"**{format_money(data['money'])}**", inline=False)
         final_embed.set_footer(text="Casino paid out")
     else:
-        save()
-
         final_embed = discord.Embed(
             title="💸 NEON CASINO",
             description=(
@@ -550,16 +566,9 @@ async def bet(ctx, color, amount: int):
 @bet.error
 async def bet_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
-        embed = discord.Embed(
-            title="🎰 NEON CASINO",
-            description=f"⏳ Następny zakład za **{error.retry_after:.1f}s**",
-            color=0xFF4D6D
-        )
-        return await ctx.send(embed=embed)
-
+        return await ctx.send(f"⏳ Następny zakład za **{error.retry_after:.1f}s**")
     if isinstance(error, commands.MissingRequiredArgument):
         return await ctx.send("❌ Użyj: `!bet (czarny/czerwony/zielony) (kwota)`")
-
     if isinstance(error, commands.BadArgument):
         return await ctx.send("❌ Kwota musi być liczbą, np. `!bet czerwony 500`")
 
@@ -617,18 +626,18 @@ async def slot(ctx, amount: int):
             return int(bet_amount * 1.8), "✨ Dwie takie same!"
         return 0, "💸 Tym razem kasyno wygrywa."
 
-    msg = await ctx.send(
-        embed=discord.Embed(
-            title="🎰 NEON CASINO",
-            description=(
-                f"╔══════════════╗\n"
-                f"**Gracz:** {ctx.author.mention}\n"
-                f"**Stawka:** **{format_money(amount)}**\n"
-                f"╚══════════════╝"
-            ),
-            color=dark_casino
-        )
+    start_embed = discord.Embed(
+        title="🎰 NEON CASINO",
+        description=(
+            f"╔══════════════╗\n"
+            f"**Gracz:** {ctx.author.mention}\n"
+            f"**Stawka:** **{format_money(amount)}**\n"
+            f"╚══════════════╝"
+        ),
+        color=dark_casino
     )
+    set_embed_thumbnail(start_embed, ctx.author)
+    msg = await ctx.send(embed=start_embed)
 
     final_reels = [spin_symbol(), spin_symbol(), spin_symbol()]
 
@@ -642,7 +651,7 @@ async def slot(ctx, amount: int):
         final_reels
     ]
 
-    delay = 1.15 / len(frames)
+    delay = 1.0 / len(frames)
 
     for i, frame in enumerate(frames):
         spin_embed = discord.Embed(
@@ -693,8 +702,6 @@ async def slot(ctx, amount: int):
         final_embed.add_field(name="Saldo", value=f"**{format_money(data['money'])}**", inline=False)
         final_embed.set_footer(text="Kasyno wypłaca nagrodę")
     else:
-        save()
-
         final_embed = discord.Embed(
             title="💸 NEON CASINO",
             description=(
@@ -717,32 +724,19 @@ async def slot(ctx, amount: int):
 @slot.error
 async def slot_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
-        embed = discord.Embed(
-            title="🎰 NEON CASINO",
-            description=f"⏳ Następny spin za **{error.retry_after:.1f}s**",
-            color=0xFF4D6D
-        )
-        return await ctx.send(embed=embed)
-
+        return await ctx.send(f"⏳ Następny spin za **{error.retry_after:.1f}s**")
     if isinstance(error, commands.MissingRequiredArgument):
         return await ctx.send("❌ Użyj: `!slot (kwota)`")
-
     if isinstance(error, commands.BadArgument):
         return await ctx.send("❌ Kwota musi być liczbą, np. `!slot 500`")
+
 
 # =====================
 # BATTLE
 # =====================
-active_battle = None
-
 @bot.command()
 @commands.cooldown(1, 4, commands.BucketType.user)
 async def battle(ctx, member: discord.Member, amount: int):
-    global active_battle
-
-    if active_battle is not None:
-        return await ctx.send("❌ Pojedynek jest już aktywny. Poczekaj aż się zakończy.")
-
     if member.bot:
         return await ctx.send("❌ Nie możesz wyzwać bota.")
 
@@ -752,17 +746,16 @@ async def battle(ctx, member: discord.Member, amount: int):
     if amount <= 0:
         return await ctx.send("❌ Kwota musi być większa niż 0.")
 
+    if ctx.author.id in ACTIVE_BATTLE_USERS:
+        return await ctx.send("❌ Jesteś już w trakcie innego battle.")
+
+    if member.id in ACTIVE_BATTLE_USERS:
+        return await ctx.send("❌ Ten gracz jest już w trakcie innego battle.")
+
     author_data = get_user(ctx.author.id)
 
     if author_data["money"] < amount:
         return await ctx.send(f"❌ Masz tylko **{format_money(author_data['money'])}**")
-
-    active_battle = {
-        "channel_id": ctx.channel.id,
-        "author_id": ctx.author.id,
-        "enemy_id": member.id,
-        "amount": amount
-    }
 
     total_pot = amount * 2
     winner_prize = int(total_pot * 0.9)
@@ -784,6 +777,17 @@ async def battle(ctx, member: discord.Member, amount: int):
     msg = await ctx.send(embed=embed)
     await msg.add_reaction("✅")
 
+    ACTIVE_BATTLES[msg.id] = {
+        "channel_id": ctx.channel.id,
+        "author_id": ctx.author.id,
+        "enemy_id": member.id,
+        "amount": amount,
+        "author_obj": ctx.author,
+        "enemy_obj": member
+    }
+    ACTIVE_BATTLE_USERS.add(ctx.author.id)
+    ACTIVE_BATTLE_USERS.add(member.id)
+
     def check(reaction, user):
         return (
             reaction.message.id == msg.id and
@@ -794,7 +798,7 @@ async def battle(ctx, member: discord.Member, amount: int):
     try:
         await bot.wait_for("reaction_add", timeout=20.0, check=check)
     except asyncio.TimeoutError:
-        active_battle = None
+        cleanup_battle(msg.id)
         cancel_embed = discord.Embed(
             title="❌ BATTLE ANULOWANE",
             description="Wyzwanie nie zostało zaakceptowane na czas.",
@@ -802,14 +806,15 @@ async def battle(ctx, member: discord.Member, amount: int):
         )
         return await msg.edit(embed=cancel_embed)
 
-    if active_battle is None:
+    battle_data = ACTIVE_BATTLES.get(msg.id)
+    if not battle_data:
         return
 
     author_data = get_user(ctx.author.id)
     enemy_data = get_user(member.id)
 
     if author_data["money"] < amount:
-        active_battle = None
+        cleanup_battle(msg.id)
         return await msg.edit(embed=discord.Embed(
             title="❌ BATTLE ANULOWANE",
             description="Osoba wyzywająca nie ma już wystarczającej ilości pieniędzy.",
@@ -817,7 +822,7 @@ async def battle(ctx, member: discord.Member, amount: int):
         ))
 
     if enemy_data["money"] < amount:
-        active_battle = None
+        cleanup_battle(msg.id)
         return await msg.edit(embed=discord.Embed(
             title="❌ BATTLE ANULOWANE",
             description=f"{member.mention} nie ma już wystarczającej ilości pieniędzy.",
@@ -827,6 +832,13 @@ async def battle(ctx, member: discord.Member, amount: int):
     author_data["money"] -= amount
     enemy_data["money"] -= amount
     save()
+
+    try:
+        await msg.clear_reactions()
+    except discord.Forbidden:
+        pass
+    except discord.HTTPException:
+        pass
 
     casino_cut = total_pot - winner_prize
 
@@ -838,7 +850,7 @@ async def battle(ctx, member: discord.Member, amount: int):
         f"💢 {ctx.author.display_name} VS {member.display_name}"
     ]
 
-    delay = 1.1 / len(battle_frames)
+    delay = 1.0 / len(battle_frames)
 
     for i, frame in enumerate(battle_frames):
         spin_embed = discord.Embed(
@@ -876,7 +888,7 @@ async def battle(ctx, member: discord.Member, amount: int):
     final_embed.set_footer(text="Only one leaves with the prize")
     set_embed_thumbnail(final_embed, winner)
 
-    active_battle = None
+    cleanup_battle(msg.id)
     await msg.edit(embed=final_embed)
 
 
@@ -908,13 +920,6 @@ async def blackjack(ctx, amount: int):
     neon_red = 0xFF4D6D
     neon_green = 0x57F287
     dark_casino = 0x11131A
-
-    card_emojis = {
-        "♠": "♠",
-        "♥": "♥",
-        "♦": "♦",
-        "♣": "♣"
-    }
 
     values = {
         "2": 2, "3": 3, "4": 4, "5": 5, "6": 6,
@@ -976,18 +981,44 @@ async def blackjack(ctx, amount: int):
     data["money"] -= amount
     save()
 
-    # Natural blackjack
-    if hand_value(player_hand) == 21:
-        winnings = int(amount * 2.5)
-        data["money"] += winnings
-        save()
+    player_blackjack = hand_value(player_hand) == 21
+    dealer_blackjack = hand_value(dealer_hand) == 21
 
+    if player_blackjack or dealer_blackjack:
+        if player_blackjack and dealer_blackjack:
+            data["money"] += amount
+            save()
+            embed = result_embed(
+                "🤝 REMIS",
+                neon_gold,
+                player_hand,
+                dealer_hand,
+                f"Obie strony mają blackjacka. Stawka **{format_money(amount)}** wraca do Ciebie.",
+                format_money(data["money"])
+            )
+            return await ctx.send(embed=embed)
+
+        if player_blackjack:
+            winnings = int(amount * 2.5)
+            data["money"] += winnings
+            save()
+            embed = result_embed(
+                "🃏 BLACKJACK!",
+                neon_green,
+                player_hand,
+                dealer_hand,
+                f"🎉 Naturalny blackjack! Wygrywasz **+{format_money(winnings)}**",
+                format_money(data["money"])
+            )
+            return await ctx.send(embed=embed)
+
+        save()
         embed = result_embed(
-            "🃏 BLACKJACK!",
-            neon_green,
+            "💸 PRZEGRANA",
+            neon_red,
             player_hand,
             dealer_hand,
-            f"🎉 Naturalny blackjack! Wygrywasz **+{format_money(winnings)}**",
+            f"Krupier ma blackjacka. Tracisz **-{format_money(amount)}**",
             format_money(data["money"])
         )
         return await ctx.send(embed=embed)
@@ -1033,7 +1064,9 @@ async def blackjack(ctx, amount: int):
 
         try:
             await msg.remove_reaction(reaction.emoji, user)
-        except:
+        except discord.Forbidden:
+            pass
+        except discord.HTTPException:
             pass
 
         if emoji == "✋":
@@ -1062,7 +1095,6 @@ async def blackjack(ctx, amount: int):
     player_total = hand_value(player_hand)
 
     if player_total > 21:
-        save()
         bust_embed = result_embed(
             "💸 PRZEGRANA",
             neon_red,
@@ -1075,7 +1107,7 @@ async def blackjack(ctx, amount: int):
 
     while hand_value(dealer_hand) < 17:
         dealer_hand.append(deck.pop())
-        await asyncio.sleep(0.7)
+        await asyncio.sleep(0.5)
 
     dealer_total = hand_value(dealer_hand)
 
@@ -1109,8 +1141,6 @@ async def blackjack(ctx, amount: int):
         await msg.edit(embed=draw_embed)
 
     else:
-        save()
-
         lose_embed = result_embed(
             "💸 PRZEGRANA",
             neon_red,
@@ -1131,18 +1161,17 @@ async def blackjack_error(ctx, error):
     if isinstance(error, commands.BadArgument):
         return await ctx.send("❌ Kwota musi być liczbą, np. `!blackjack 500`")
 
+
 # =====================
 # JACKPOT
 # =====================
-active_jackpot = None
-
 @bot.command()
-@commands.cooldown(1, 5, commands.BucketType.guild)
+@commands.cooldown(1, 5, commands.BucketType.channel)
 async def jackpot(ctx, amount: int):
-    global active_jackpot
+    channel_id = ctx.channel.id
 
-    if active_jackpot is not None:
-        return await ctx.send("❌ Jackpot jest już aktywny. Użyj `!joinpot kwota`, aby dołączyć.")
+    if channel_id in ACTIVE_JACKPOTS:
+        return await ctx.send("❌ Na tym kanale jackpot jest już aktywny. Użyj `!joinpot kwota`, aby dołączyć.")
 
     if amount <= 0:
         return await ctx.send("❌ Kwota musi być większa niż 0")
@@ -1155,16 +1184,14 @@ async def jackpot(ctx, amount: int):
     host_data["money"] -= amount
     save()
 
-    active_jackpot = {
-        "channel_id": ctx.channel.id,
+    ACTIVE_JACKPOTS[channel_id] = {
         "host_id": ctx.author.id,
         "players": {
             str(ctx.author.id): {
                 "user": ctx.author,
                 "amount": amount
             }
-        },
-        "ends_at": time.time() + 20
+        }
     }
 
     neon_gold = 0xF5C542
@@ -1190,13 +1217,14 @@ async def jackpot(ctx, amount: int):
     for seconds_left in [15, 10, 5]:
         await asyncio.sleep(5)
 
-        if active_jackpot is None:
+        jackpot_data = ACTIVE_JACKPOTS.get(channel_id)
+        if jackpot_data is None:
             return
 
-        total_pot = sum(player["amount"] for player in active_jackpot["players"].values())
+        total_pot = sum(player["amount"] for player in jackpot_data["players"].values())
         player_list = "\n".join(
             f"{info['user'].mention} — **{format_money(info['amount'])}**"
-            for info in active_jackpot["players"].values()
+            for info in jackpot_data["players"].values()
         )
 
         update_embed = discord.Embed(
@@ -1208,16 +1236,17 @@ async def jackpot(ctx, amount: int):
             color=neon_gold if seconds_left <= 10 else dark_casino
         )
         update_embed.add_field(name="Pula", value=f"**{format_money(total_pot)}**", inline=True)
-        update_embed.add_field(name="Gracze", value=f"**{len(active_jackpot['players'])}**", inline=True)
+        update_embed.add_field(name="Gracze", value=f"**{len(jackpot_data['players'])}**", inline=True)
         update_embed.add_field(name="Uczestnicy", value=player_list[:1024], inline=False)
         update_embed.set_footer(text="Wygrany zgarnia 90% puli • 10% dla kasyna")
 
         await msg.edit(embed=update_embed)
 
-    if active_jackpot is None:
+    jackpot_data = ACTIVE_JACKPOTS.get(channel_id)
+    if jackpot_data is None:
         return
 
-    players = list(active_jackpot["players"].values())
+    players = list(jackpot_data["players"].values())
     total_pot = sum(player["amount"] for player in players)
 
     if len(players) < 2:
@@ -1233,14 +1262,13 @@ async def jackpot(ctx, amount: int):
         )
         cancel_embed.add_field(name="Zwrócono", value=f"**{format_money(refund_player['amount'])}**", inline=False)
 
-        active_jackpot = None
+        ACTIVE_JACKPOTS.pop(channel_id, None)
         return await msg.edit(embed=cancel_embed)
 
-    weighted_entries = []
-    for player in players:
-        weighted_entries.extend([player["user"]] * player["amount"])
+    weighted_users = [player["user"] for player in players]
+    weighted_amounts = [player["amount"] for player in players]
 
-    winner = random.choice(weighted_entries)
+    winner = random.choices(weighted_users, weights=weighted_amounts, k=1)[0]
     winner_take = int(total_pot * 0.90)
     casino_take = total_pot - winner_take
 
@@ -1267,19 +1295,17 @@ async def jackpot(ctx, amount: int):
     final_embed.set_footer(text="Jackpot zakończony")
     set_embed_thumbnail(final_embed, winner)
 
-    active_jackpot = None
+    ACTIVE_JACKPOTS.pop(channel_id, None)
     await msg.edit(embed=final_embed)
 
 
 @bot.command()
 async def joinpot(ctx, amount: int):
-    global active_jackpot
+    channel_id = ctx.channel.id
+    jackpot_data = ACTIVE_JACKPOTS.get(channel_id)
 
-    if active_jackpot is None:
-        return await ctx.send("❌ Nie ma teraz aktywnego jackpota. Użyj `!jackpot kwota`.")
-
-    if ctx.channel.id != active_jackpot["channel_id"]:
-        return await ctx.send("❌ Ten jackpot działa na innym kanale.")
+    if jackpot_data is None:
+        return await ctx.send("❌ Nie ma teraz aktywnego jackpota na tym kanale. Użyj `!jackpot kwota`.")
 
     if amount <= 0:
         return await ctx.send("❌ Kwota musi być większa niż 0")
@@ -1293,22 +1319,22 @@ async def joinpot(ctx, amount: int):
     data["money"] -= amount
     save()
 
-    if user_id in active_jackpot["players"]:
-        active_jackpot["players"][user_id]["amount"] += amount
+    if user_id in jackpot_data["players"]:
+        jackpot_data["players"][user_id]["amount"] += amount
     else:
-        active_jackpot["players"][user_id] = {
+        jackpot_data["players"][user_id] = {
             "user": ctx.author,
             "amount": amount
         }
 
-    total_pot = sum(player["amount"] for player in active_jackpot["players"].values())
+    total_pot = sum(player["amount"] for player in jackpot_data["players"].values())
 
     embed = discord.Embed(
         title="🎰 DOŁĄCZONO DO JACKPOTA",
         description=(
             f"{ctx.author.mention} dołączył z kwotą **{format_money(amount)}**\n\n"
             f"**Aktualna pula:** **{format_money(total_pot)}**\n"
-            f"**Liczba graczy:** **{len(active_jackpot['players'])}**"
+            f"**Liczba graczy:** **{len(jackpot_data['players'])}**"
         ),
         color=0xF5C542
     )
@@ -1319,7 +1345,7 @@ async def joinpot(ctx, amount: int):
 @jackpot.error
 async def jackpot_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
-        return await ctx.send(f"⏳ Następny jackpot możesz uruchomić za **{error.retry_after:.1f}s**")
+        return await ctx.send(f"⏳ Następny jackpot na tym kanale za **{error.retry_after:.1f}s**")
     if isinstance(error, commands.MissingRequiredArgument):
         return await ctx.send("❌ Użyj: `!jackpot (kwota)`")
     if isinstance(error, commands.BadArgument):
@@ -1332,8 +1358,6 @@ async def joinpot_error(ctx, error):
         return await ctx.send("❌ Użyj: `!joinpot (kwota)`")
     if isinstance(error, commands.BadArgument):
         return await ctx.send("❌ Kwota musi być liczbą, np. `!joinpot 500`")
-
-
 
 
 # =====================
@@ -1361,6 +1385,7 @@ async def sklep(ctx):
     )
     embed.set_footer(text="Kupno koloru zmienia poprzedni kolor.")
     await ctx.send(embed=embed)
+
 
 # =====================
 # KUP
@@ -1391,7 +1416,7 @@ async def kup(ctx, item, amount: int = 1):
     data["money"] -= total_price
 
     if item in COLOR_ROLES:
-        for _, role_name in COLOR_ROLES.items():
+        for role_name in COLOR_ROLES.values():
             old_role = discord.utils.get(ctx.guild.roles, name=role_name)
             if old_role and old_role in ctx.author.roles:
                 await ctx.author.remove_roles(old_role)
@@ -1426,6 +1451,7 @@ async def kup(ctx, item, amount: int = 1):
     set_embed_thumbnail(embed, ctx.author)
     await ctx.send(embed=embed)
 
+
 # =====================
 # EQ
 # =====================
@@ -1457,6 +1483,7 @@ async def eq(ctx):
     set_embed_thumbnail(embed, ctx.author)
     await ctx.send(embed=embed)
 
+
 # =====================
 # GLOBAL ERROR
 # =====================
@@ -1471,6 +1498,7 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.CheckFailure):
         return await ctx.send("❌ Nie masz uprawnień do tej komendy.")
     raise error
+
 
 # =====================
 # START
