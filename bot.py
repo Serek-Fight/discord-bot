@@ -61,7 +61,7 @@ professions = {
 }
 
 # =====================
-# SLOTY
+# SLOT
 # =====================
 slot_emojis = ["🍎", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "⭐", "💎", "💰"]
 
@@ -338,147 +338,173 @@ async def setmoney(ctx, member: discord.Member, amount: int):
 # =====================
 # BET (HAZARD)
 # =====================
+# =====================
+# BET (HAZARD)
+# =====================
 @bot.command()
+@commands.cooldown(1, 2, commands.BucketType.user)
 async def bet(ctx, color, amount: int):
-    import random, asyncio
-
     color = color.lower()
 
-    COLORS = {
-        "czarny": "⚫",
-        "czerwony": "🔴",
-        "zielony": "🟢"
+    valid_colors = {
+        "czarny": {"emoji": "⚫", "multiplier": 2},
+        "czerwony": {"emoji": "🔴", "multiplier": 2},
+        "zielony": {"emoji": "🟢", "multiplier": 14}
     }
 
-    # ✅ Walidacja
-    if color not in COLORS:
-        return await ctx.send("❌ Użyj: !bet (czarny/czerwony/zielony) (ilość)")
-    
+    if color not in valid_colors:
+        embed = discord.Embed(
+            title="❌ BŁĄD",
+            description="Użyj: `!bet (czarny/czerwony/zielony) (ilość)`",
+            color=0xFF6B6B
+        )
+        return await ctx.send(embed=embed)
+
     if amount <= 0:
-        return await ctx.send("❌ Kwota musi być większa niż 0")
+        embed = discord.Embed(
+            title="❌ BŁĄD",
+            description="Kwota musi być większa niż 0",
+            color=0xFF6B6B
+        )
+        return await ctx.send(embed=embed)
 
     data = get_user(ctx.author.id)
 
     if data["money"] < amount:
-        return await ctx.send(f"❌ Masz tylko {data['money']}$")
+        embed = discord.Embed(
+            title="❌ BŁĄD",
+            description=f"Masz tylko **{data['money']}$**",
+            color=0xFF6B6B
+        )
+        return await ctx.send(embed=embed)
 
-    # 💸 zabranie kasy
     data["money"] -= amount
     save()
 
-    # 🎰 START
+    def roll_result(selected_color):
+        roll = random.uniform(0, 100)
+
+        if selected_color == "czerwony":
+            if roll < 40:
+                return "czerwony"
+            elif roll < 42.5:
+                return "zielony"
+            return "czarny"
+
+        if selected_color == "czarny":
+            if roll < 40:
+                return "czarny"
+            elif roll < 42.5:
+                return "zielony"
+            return "czerwony"
+
+        if roll < 2.5:
+            return "zielony"
+        elif roll < 51.25:
+            return "czerwony"
+        return "czarny"
+
+    spin_frames = [
+        "⚫ 🔴 ⚫ 🟢 🔴 ⚫ 🔴",
+        "🔴 ⚫ 🟢 ⚫ 🔴 ⚫ 🔴",
+        "⚫ 🟢 🔴 ⚫ 🔴 ⚫ 🔴",
+        "🟢 ⚫ 🔴 ⚫ 🔴 ⚫ 🔴",
+        "🔴 ⚫ 🔴 🟢 ⚫ 🔴 ⚫",
+        "⚫ 🔴 ⚫ 🔴 🟢 ⚫ 🔴",
+        "🔴 ⚫ 🔴 ⚫ 🔴 🟢 ⚫",
+        "⚫ 🔴 🟢 ⚫ 🔴 ⚫ 🔴"
+    ]
+
     embed = discord.Embed(
-        title="🎰 Ruletka",
+        title="🎰 RULETKA",
         description=(
-            f"**Typ:** {COLORS[color]} {color}\n"
-            f"**Stawka:** {amount}$"
+            f"**Gracz:** {ctx.author.mention}\n"
+            f"**Typ:** {valid_colors[color]['emoji']} {color.capitalize()}\n"
+            f"**Stawka:** **{amount}$**\n\n"
+            f"Kręcę ruletką..."
         ),
-        color=0x2B2D31
+        color=0xF1C40F
     )
+
+    if ctx.author.avatar:
+        embed.set_thumbnail(url=ctx.author.avatar.url)
 
     msg = await ctx.send(embed=embed)
 
-    # 🎥 KRÓTKA ANIMACJA
-    frames = ["⚫", "🔴", "🟢"]
+    total_spin_time = 2.0
+    delay = total_spin_time / len(spin_frames)
 
-    for _ in range(4):  # krótko
-        embed.description = (
-            f"**Typ:** {COLORS[color]} {color}\n"
-            f"**Stawka:** {amount}$\n\n"
-            f"🎲 Losowanie: {random.choice(frames)}"
+    for frame in spin_frames:
+        spin_embed = discord.Embed(
+            title="🎰 RULETKA",
+            description=(
+                f"**Gracz:** {ctx.author.mention}\n"
+                f"**Typ:** {valid_colors[color]['emoji']} {color.capitalize()}\n"
+                f"**Stawka:** **{amount}$**\n\n"
+                f"Kręcę ruletką...\n\n"
+                f"`{frame}`"
+            ),
+            color=0xF1C40F
         )
-        await msg.edit(embed=embed)
-        await asyncio.sleep(0.3)
 
-    # 🎯 LOSOWANIE
-    roll = random.randint(1, 100)
+        if ctx.author.avatar:
+            spin_embed.set_thumbnail(url=ctx.author.avatar.url)
 
-    if roll <= 5:
-        result = "zielony"
-        multiplier = 10
-    elif roll <= 45:
-        result = color
-        multiplier = 2
-    else:
-        result = "czarny" if color == "czerwony" else "czerwony"
-        multiplier = 2
+        await msg.edit(embed=spin_embed)
+        await asyncio.sleep(delay)
 
-    result_emoji = COLORS[result]
+    result = roll_result(color)
+    won = result == color
 
-    # 🎉 WYNIK
-    if result == color:
-        winnings = amount * multiplier
+    if won:
+        winnings = amount * valid_colors[color]["multiplier"]
         data["money"] += winnings
         save()
 
-        text = (
-            f"🎯 Wynik: {result_emoji} **{result}**\n"
-            f"💰 Wygrana: **+{winnings}$** (x{multiplier})\n"
-            f"💼 Stan: **{data['money']}$**"
+        final_embed = discord.Embed(
+            title="🎉 WYGRAŁEŚ!",
+            description=(
+                f"**Twój typ:** {valid_colors[color]['emoji']} {color.capitalize()}\n"
+                f"**Wynik:** {valid_colors[result]['emoji']} {result.capitalize()}\n"
+                f"**Wygrana:** **+{winnings}$**\n"
+                f"**Stan konta:** **{data['money']}$**"
+            ),
+            color=0x57F287
         )
-        color_embed = 0x57F287
-
     else:
-        text = (
-            f"🎯 Wynik: {result_emoji} **{result}**\n"
-            f"💸 Strata: **-{amount}$**\n"
-            f"💼 Stan: **{data['money']}$**"
-        )
-        color_embed = 0xED4245
+        save()
 
-    # 🏁 FINAL
-    final_embed = discord.Embed(
-        title="🎰 Wynik",
-        description=text,
-        color=color_embed
+        final_embed = discord.Embed(
+            title="💸 PRZEGRAŁEŚ!",
+            description=(
+                f"**Twój typ:** {valid_colors[color]['emoji']} {color.capitalize()}\n"
+                f"**Wynik:** {valid_colors[result]['emoji']} {result.capitalize()}\n"
+                f"**Strata:** **-{amount}$**\n"
+                f"**Stan konta:** **{data['money']}$**"
+            ),
+            color=0xED4245
+        )
+
+    final_embed.set_footer(
+        text="Szanse: czerwony/czarny 40% przy obstawieniu, zielony zawsze 2.5%"
     )
+
+    if ctx.author.avatar:
+        final_embed.set_thumbnail(url=ctx.author.avatar.url)
 
     await msg.edit(embed=final_embed)
 
-# =====================
-# SKLEP
-# =====================
-@bot.command()
-async def sklep(ctx):
-    embed = discord.Embed(
-        title="🛒 SKLEP",
-        description="Dostępne itemy:",
-        color=0xFFA500
-    )
 
-    # ITEMY
-    for item, price in shop_items.items():
-        if item == "burger":
-            embed.add_field(
-                name="🍔 Burger",
-                value=f"💰 {price}$",
-                inline=False
-            )
-        elif item in color_roles:
-            # Kolory
-            emojis = {
-                "czerwony": "❤️",
-                "niebieski": "💙",
-                "zielony": "💚",
-                "zolty": "💛",
-                "fioletowy": "💜",
-                "rozowy": "🩷"
-            }
-            emoji = emojis.get(item, "⭕")
-            embed.add_field(
-                name=f"{emoji} {item.capitalize()}",
-                value=f"💰 {price}$",
-                inline=False
-            )
+@bet.error
+async def bet_error(ctx, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        embed = discord.Embed(
+            title="⏳ CZEKAJ",
+            description=f"Możesz użyć `!bet` ponownie za **{error.retry_after:.1f}s**",
+            color=0xFF6B6B
+        )
+        await ctx.send(embed=embed)
 
-    embed.add_field(
-        name="  JAK KUPIĆ?",
-        value="Wpisz: `!kup burger 1`\nLub: `!kup czerwony`",
-        inline=False
-    )
-    embed.set_footer(text="Kolory zastępują stary kolor!")
-
-    await ctx.send(embed=embed)
 
 # =====================
 # KUP
