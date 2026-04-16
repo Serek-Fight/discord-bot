@@ -338,9 +338,6 @@ async def setmoney(ctx, member: discord.Member, amount: int):
 # =====================
 # BET (HAZARD)
 # =====================
-# =====================
-# BET (HAZARD)
-# =====================
 @bot.command()
 @commands.cooldown(1, 2, commands.BucketType.user)
 async def bet(ctx, color, amount: int):
