@@ -453,6 +453,28 @@ async def setmoney(ctx, member: discord.Member, amount: int):
 # =====================
 # BET
 # =====================
+import random
+
+def get_bet_result(bet_color):
+    if bet_color == "czerwony":
+        return random.choices(
+            ["czerwony", "czarny", "zielony"],
+            weights=[30, 67.5, 2.5]
+        )[0]
+
+    elif bet_color == "czarny":
+        return random.choices(
+            ["czarny", "czerwony", "zielony"],
+            weights=[30, 67.5, 2.5]
+        )[0]
+
+    elif bet_color == "zielony":
+        return random.choices(
+            ["zielony", "czarny", "czerwony"],
+            weights=[2.5, 48.75, 48.75]
+        )[0]
+
+
 @bot.command()
 @commands.cooldown(1, 2, commands.BucketType.user)
 async def bet(ctx, color, amount: int):
