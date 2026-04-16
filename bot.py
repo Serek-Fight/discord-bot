@@ -483,7 +483,7 @@ async def bet(ctx, color, amount: int):
         )
 
     final_embed.set_footer(
-        text="Szanse: czerwony/czarny 40% przy obstawieniu, zielony zawsze 2.5%"
+        text="Lubie Placki"
     )
 
     if ctx.author.avatar:
