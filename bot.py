@@ -459,13 +459,13 @@ def get_bet_result(bet_color):
     if bet_color == "czerwony":
         return random.choices(
             ["czerwony", "czarny", "zielony"],
-            weights=[30, 67.5, 2.5]
+            weights=[35, 62.5, 2.5]
         )[0]
 
     elif bet_color == "czarny":
         return random.choices(
             ["czarny", "czerwony", "zielony"],
-            weights=[30, 67.5, 2.5]
+            weights=[35, 62.5, 2.5]
         )[0]
 
     elif bet_color == "zielony":
@@ -569,7 +569,7 @@ async def bet(ctx, color, amount: int):
         final_embed.set_footer(text="Casino paid out")
     else:
         final_embed = discord.Embed(
-            title="💸 NEON CASINO",
+            title="💸 CASINO",
             description=(
                 f"**Twój typ:** {BET_COLORS[color]['emoji']} **{color.capitalize()}**\n"
                 f"**Wylosowano:** {BET_COLORS[result]['emoji']} **{result.capitalize()}**"
